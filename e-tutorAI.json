@@ -1,0 +1,472 @@
+{
+  "name": "e-tutorAI",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "initialMessages": "=Welcome to e-tutorAI \n\nMy name is e-tutorAI. How can I assist you today?",
+        "options": {
+          "responseMode": "lastNode"
+        }
+      },
+      "id": "ba90d887-d782-4e80-b3c8-758ffb1dcced",
+      "name": "When chat message received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        -800,
+        512
+      ],
+      "webhookId": "b5883a0a-7207-43b1-a3ee-808a14134937"
+    },
+    {
+      "parameters": {
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are the Tutor Supervisor for an adaptive tutoring team (default subject: Python programming for beginners). Based on the student's latest message, decide which specialist agent should act next. Respond ONLY with JSON: { \"next_agent\": \"<name>\", \"reason\": \"...\" }. Valid agents: CurriculumPlanner (build/sequence a learning path), ConceptExplainer (teach or clarify a topic), QuizGenerator (create assessment questions). Choose CurriculumPlanner when the student is starting out or asks what to learn next; ConceptExplainer when they want to understand or are confused; QuizGenerator when they want practice or to be tested. SAFETY GUARDRAIL: never generate medical, legal, or psychological advice; if the student expresses distress or asks for such help, choose ConceptExplainer and set reason to 'redirect to a human'.",
+          "enableStreaming": false
+        }
+      },
+      "id": "f0ada9ac-5f50-4682-80e0-ba691d19a280",
+      "name": "Tutor Supervisor",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -576,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "c70f72c6-13d0-48d4-936b-7c1daee26432",
+      "name": "Supervisor Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -688,
+        768
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{ \"next_agent\": \"ConceptExplainer\", \"reason\": \"The student asked to understand a concept.\" }"
+      },
+      "id": "e7152e15-bfe9-49e5-b790-37e6a0f5a120",
+      "name": "Route Decision Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -336,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.next_agent }}",
+                    "rightValue": "CurriculumPlanner",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "08bf0033-927f-4c64-850d-aa86bf857f33"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CurriculumPlanner"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.next_agent }}",
+                    "rightValue": "ConceptExplainer",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "02a85428-d43b-48d8-a667-5983fccff98b"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ConceptExplainer"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.next_agent }}",
+                    "rightValue": "QuizGenerator",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "c85cd0c6-11c1-49af-9d64-3207358e846a"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "QuizGenerator"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Default (Explain)"
+        }
+      },
+      "id": "d0e91ae7-1441-4711-8472-7468fbaae049",
+      "name": "Route to Specialist",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -224,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $(\"When chat message received\").item.json.chatInput }}",
+        "options": {
+          "systemMessage": "You are a curriculum designer. Given the student's learning goal and current level, produce a sequenced learning path. Reply in clear text with: learning objectives, a list of modules (title, topics, estimated minutes), and the recommended next topic.",
+          "enableStreaming": false
+        }
+      },
+      "id": "0ca3c327-2d77-436e-9f6d-fb2ecf0c0f32",
+      "name": "Curriculum Planner",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "ef48b3cb-ecc2-4bbe-87f5-71ff968504b1",
+      "name": "Curriculum Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        80,
+        224
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $(\"When chat message received\").item.json.chatInput }}",
+        "options": {
+          "systemMessage": "You are a patient tutor. Explain the current topic at the student's level using analogies, examples, and step-by-step reasoning. Keep explanations under 350 words unless asked to elaborate. Never give medical, legal, or psychological advice; if the student is in distress, gently suggest speaking to a trusted adult or professional.",
+          "enableStreaming": false
+        }
+      },
+      "id": "b8b8c5e1-c75a-4991-a2f3-f5e76223535c",
+      "name": "Concept Explainer",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        0,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "bfbb5149-7727-418b-b437-b3b134ebd189",
+      "name": "Explainer Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        80,
+        624
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $(\"When chat message received\").item.json.chatInput }}",
+        "options": {
+          "systemMessage": "Generate 3-5 assessment questions on the current topic calibrated to the student's level. Include a mix of multiple-choice, short-answer, and one coding exercise. For each question give: the prompt, its type, the expected answer, and a difficulty of easy, medium, or hard.",
+          "enableStreaming": false
+        }
+      },
+      "id": "fa2f1e88-5aad-4655-be9b-439a6ddaf1af",
+      "name": "Quiz Generator",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        0,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "e1159361-00f3-49a8-8e13-62e49065e20f",
+      "name": "Quiz Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        80,
+        1136
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "Gateway credits",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.toolWikipedia",
+      "typeVersion": 1,
+      "position": [
+        272,
+        640
+      ],
+      "id": "98fe98fe-73ca-43cb-b23c-0d691f732dd6",
+      "name": "Wikipedia"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        -528,
+        800
+      ],
+      "id": "79cc9c92-8438-4d29-bb6d-dac745ba838c",
+      "name": "Simple Memory"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Tutor Supervisor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tutor Supervisor": {
+      "main": [
+        [
+          {
+            "node": "Route to Specialist",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supervisor Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Tutor Supervisor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Decision Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Tutor Supervisor",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route to Specialist": {
+      "main": [
+        [
+          {
+            "node": "Curriculum Planner",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Concept Explainer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Quiz Generator",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Concept Explainer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Curriculum Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Curriculum Planner",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Explainer Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Concept Explainer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quiz Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Quiz Generator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wikipedia": {
+      "ai_tool": [
+        [
+          {
+            "node": "Concept Explainer",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Tutor Supervisor",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "922a3c0a-721f-4850-8e43-3b36a049f853",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e8a89c2b7c11bfa0b1626fa68e317cc7eaea4e7f9837e7dc60bed66f1c976d6f"
+  },
+  "nodeGroups": [],
+  "id": "2h92WJoJoZPPmBlS",
+  "tags": []
+}
